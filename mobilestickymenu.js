@@ -26,14 +26,10 @@
       /\/product\//,
     ],
 
-    // You originally had a fade-on-scroll concept;
-    // but per your latest screenshots/request, header should be BLACK always.
-    // We'll keep the listener harmlessly, but bg is always opaque.
-    scrollTriggerPx: 8,
-
-    loginAdoptTimeoutMs: 12000,
-    loginRetryIntervalMs: 350,
-    loginObserverIdleMs: 1200,
+    scrollTriggerPx: 8,              // when the black strip fades in
+    loginAdoptTimeoutMs: 12000,      // stop trying after this long
+    loginRetryIntervalMs: 350,       // polling interval
+    loginObserverIdleMs: 1200,       // stop observing if nothing changes for this long
 
     // ✅ Your Wix Members Login Bar element id (from your outerHTML)
     wixMembersRootId: "comp-mlwaz3zu",
@@ -67,6 +63,7 @@
     return CONFIG.exactPaths.has(path) || isProductPage(path);
   };
 
+  // Prevent duplicate init (Wix can re-run scripts on navigation)
   const alreadyMounted = () => document.getElementById(CONFIG.ids.header);
 
   if (!shouldRunHere() || alreadyMounted()) return;
@@ -87,35 +84,47 @@
 
   --header-h:64px;
   --fade-h:26px;
+  --drawer-w:300px;
   --btn-size:44px;
 }
 
-/* Prevent sideways peeking/scroll */
-html, body{ overflow-x:hidden !important; }
-
-/* Reserve space so content doesn't sit under fixed header */
+/* Reserve space so content doesn't sit under the fixed header */
 body{ padding-top:var(--header-h)!important; }
 
-/* Sticky header wrapper: NO padding (prevents side gaps) */
+/* Sticky header wrapper */
 #${CONFIG.ids.header}{
   position:fixed;
   top:0; left:0; right:0;
   height:var(--header-h);
   z-index:99999;
-  padding:0 !important;
-  margin:0 !important;
-  display:block;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 14px;
   pointer-events:none;
 }
 
-/* Full-width black strip (always visible) */
+/* Clickable inner */
+#${CONFIG.ids.header} .inner{
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  pointer-events:auto;
+  position:relative; /* dropdown can anchor here */
+}
+
+/* Transparent at top; fades in on scroll */
 #${CONFIG.ids.header} .bg{
   position:absolute;
   inset:0;
-  background:var(--parlor-bg) !important;
-  opacity:1 !important;
+  background:var(--parlor-bg);
+  opacity:0;
+  transition:opacity .18s ease;
   pointer-events:none;
 }
+#${CONFIG.ids.header}.scrolled .bg{ opacity:1; }
 
 /* Feather below header */
 #${CONFIG.ids.header} .bg::after{
@@ -131,29 +140,6 @@ body{ padding-top:var(--header-h)!important; }
   );
 }
 
-/* Clickable inner row (padding belongs here) */
-#${CONFIG.ids.header} .inner{
-  position:relative;
-  height:100%;
-  width:100%;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:0 14px;
-  pointer-events:auto;
-}
-
-/* Force everything in header to white (Wix theme overrides) */
-#${CONFIG.ids.header},
-#${CONFIG.ids.header} *{
-  color:#fff !important;
-}
-#${CONFIG.ids.header} svg,
-#${CONFIG.ids.header} svg *{
-  fill:#fff !important;
-  stroke:#fff !important;
-}
-
 /* Hamburger */
 #${CONFIG.ids.hamburger}{
   width:var(--btn-size);
@@ -161,7 +147,7 @@ body{ padding-top:var(--header-h)!important; }
   display:grid;
   place-items:center;
   border:0;
-  background:transparent !important;
+  background:transparent;
   cursor:pointer;
   -webkit-tap-highlight-color:transparent;
   z-index:2;
@@ -175,7 +161,7 @@ body{ padding-top:var(--header-h)!important; }
 #${CONFIG.ids.hamburger} .bars span{
   position:absolute; left:0; right:0;
   height:2px;
-  background:#fff !important; /* force white */
+  background:var(--parlor-text);
   border-radius:2px;
   transition:transform .22s ease, top .22s ease, opacity .18s ease;
 }
@@ -186,23 +172,23 @@ body{ padding-top:var(--header-h)!important; }
 #${CONFIG.ids.hamburger}.is-open .bars span:nth-child(2){ opacity:0; }
 #${CONFIG.ids.hamburger}.is-open .bars span:nth-child(3){ top:8px; transform:rotate(-45deg); }
 
-/* Login slot (adopted Wix members bar lives here) */
+/* Login slot (holds the real Wix members bar once adopted) */
 #${CONFIG.ids.loginSlot}{
   display:flex;
   align-items:center;
   gap:10px;
   z-index:2;
   font-family:var(--parlor-font);
-  color:#fff !important;
-  position:relative;
+  color:var(--parlor-text);
+  position:relative; /* helps dropdown positioning */
 }
 
-/* Prevent adopted Wix bar from bringing margins/padding */
-#${CONFIG.ids.loginSlot} .wixui-login-social-bar,
+/* Make sure adopted Wix bar doesn't bring layout weirdness */
+#${CONFIG.ids.loginSlot} .wixui-login-social-bar{
+  margin:0!important;
+}
 #${CONFIG.ids.loginSlot} .login-social-bar{
-  margin:0 !important;
-  padding:0 !important;
-  background:transparent !important;
+  margin:0!important;
 }
 
 /* Overlay */
@@ -220,39 +206,23 @@ body{ padding-top:var(--header-h)!important; }
   pointer-events:auto;
 }
 
-/* Drawer: FULL SCREEN */
+/* Drawer */
 #${CONFIG.ids.drawer}{
   position:fixed;
   top:0; left:0;
   height:100%;
-  width:100vw !important;
-  max-width:100vw !important;
-
-  background:var(--parlor-bg) !important;
-  color:#fff !important;
-
+  width:min(var(--drawer-w),88vw);
+  background:var(--parlor-bg);
+  color:var(--parlor-text);
   transform:translateX(-102%);
   transition:transform .25s ease;
   z-index:99980;
-
   padding:0 16px 24px;
   overflow-y:auto;
-  overflow-x:hidden;
-  border-right:none;
+  border-right:1px solid rgba(255,255,255,0.10);
   font-family:var(--parlor-font);
 }
 #${CONFIG.ids.drawer}.open{ transform:translateX(0); }
-
-/* Force everything in drawer to white */
-#${CONFIG.ids.drawer},
-#${CONFIG.ids.drawer} *{
-  color:#fff !important;
-}
-#${CONFIG.ids.drawer} svg,
-#${CONFIG.ids.drawer} svg *{
-  fill:#fff !important;
-  stroke:#fff !important;
-}
 
 /* Top cap inside drawer (so items fade under X area) */
 #${CONFIG.ids.drawerTop}{
@@ -260,7 +230,7 @@ body{ padding-top:var(--header-h)!important; }
   top:0;
   height:var(--header-h);
   z-index:5;
-  background:var(--parlor-bg) !important;
+  background:var(--parlor-bg);
   margin:0 -16px;
 }
 #${CONFIG.ids.drawerTop}::after{
@@ -294,18 +264,19 @@ body{ padding-top:var(--header-h)!important; }
 }
 
 #${CONFIG.ids.drawer} a.link{
+  color:var(--parlor-text);
   text-decoration:none;
   display:block;
   width:100%;
   padding:14px 6px;
   font-size:18px;
   letter-spacing:.01em;
-  color:#fff !important;
 }
 
 #${CONFIG.ids.drawer} .toggle{
   border:0;
-  background:transparent !important;
+  background:transparent;
+  color:var(--parlor-text);
   cursor:pointer;
   padding:10px 10px;
   border-radius:10px;
@@ -317,8 +288,8 @@ body{ padding-top:var(--header-h)!important; }
 #${CONFIG.ids.drawer} .chev{
   width:14px;
   height:14px;
-  border-right:2px solid #fff !important;
-  border-bottom:2px solid #fff !important;
+  border-right:2px solid var(--parlor-text);
+  border-bottom:2px solid var(--parlor-text);
   transform:rotate(45deg);
   transition:transform .2s ease;
   margin-top:-2px;
@@ -340,7 +311,7 @@ body{ padding-top:var(--header-h)!important; }
   display:block;
   padding:10px 6px;
   font-size:16px;
-  color:rgba(255,255,255,0.78) !important;
+  color:rgba(255,255,255,0.78);
   text-decoration:none;
 }
     `.trim();
@@ -357,14 +328,14 @@ body{ padding-top:var(--header-h)!important; }
   const injectHTML = () => {
     const header = document.createElement("div");
     header.id = CONFIG.ids.header;
-
-    // ✅ bg is a DIRECT child of header so it spans edge-to-edge
     header.innerHTML = `
-      <div class="bg" aria-hidden="true"></div>
       <div class="inner">
+        <div class="bg" aria-hidden="true"></div>
+
         <button id="${CONFIG.ids.hamburger}" aria-label="Open menu" aria-controls="${CONFIG.ids.drawer}" aria-expanded="false">
           <div class="bars" aria-hidden="true"><span></span><span></span><span></span></div>
         </button>
+
         <div id="${CONFIG.ids.loginSlot}" aria-label="Account"></div>
       </div>
     `.trim();
@@ -488,6 +459,7 @@ body{ padding-top:var(--header-h)!important; }
       if (a) closeMenu();
     });
 
+    // Accordions
     const accordions = Array.from(drawer.querySelectorAll("[data-acc]"));
     accordions.forEach((acc) => {
       const toggle = acc.querySelector(".toggle");
@@ -510,7 +482,7 @@ body{ padding-top:var(--header-h)!important; }
   };
 
   // -------------------------
-  // Scroll handler (kept, but bg is always opaque)
+  // Scroll fade (transparent → black)
   // -------------------------
   const wireScrollFade = (headerEl) => {
     const onScroll = () => {
@@ -525,12 +497,15 @@ body{ padding-top:var(--header-h)!important; }
   // ✅ Adopt Wix Members bar by ID (deterministic)
   // -------------------------
   const findWixMembersBar = () => {
+    // 1) Best: your known ID
     const byId = document.getElementById(CONFIG.wixMembersRootId);
     if (byId) return byId;
 
+    // 2) Fallback: any members bar root
     const anyBar = document.querySelector(".wixui-login-social-bar.login-social-bar");
     if (anyBar) return anyBar;
 
+    // 3) Fallback: handle-button (account button) parent
     const handle = document.querySelector('[data-testid="handle-button"][role="button"]');
     if (handle) return handle.closest(".wixui-login-social-bar.login-social-bar") || handle;
 
@@ -541,16 +516,20 @@ body{ padding-top:var(--header-h)!important; }
     const bar = findWixMembersBar();
     if (!bar) return false;
 
+    // Don't accidentally grab our injected UI
     if (bar.id === CONFIG.ids.header || bar.id === CONFIG.ids.drawer) return false;
 
+    // Move the whole bar so it stays identical (icons + avatar + dropdown)
     bar.style.margin = "0";
     bar.style.padding = "0";
     bar.style.background = "transparent";
     bar.style.position = "static";
-    bar.style.zIndex = "2";
 
     loginSlotEl.innerHTML = "";
     loginSlotEl.appendChild(bar);
+
+    // Ensure the dropdown isn't clipped and sits above
+    bar.style.zIndex = "2";
 
     return true;
   };
@@ -572,6 +551,7 @@ body{ padding-top:var(--header-h)!important; }
     };
 
     const failSilently = () => {
+      // No anchor fallback (your request): just hide the slot.
       loginSlotEl.style.display = "none";
     };
 
@@ -592,8 +572,10 @@ body{ padding-top:var(--header-h)!important; }
       return false;
     };
 
+    // Immediate
     tryAdopt();
 
+    // Observe DOM changes (Wix renders late)
     mo = new MutationObserver(() => {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
@@ -605,8 +587,10 @@ body{ padding-top:var(--header-h)!important; }
     });
     mo.observe(document.body, { childList: true, subtree: true });
 
+    // Poll fallback
     pollTimer = setInterval(tryAdopt, CONFIG.loginRetryIntervalMs);
 
+    // Hard stop
     setTimeout(() => {
       if (!adopted) {
         stopAll();
@@ -637,7 +621,7 @@ body{ padding-top:var(--header-h)!important; }
     init();
   }
 
-  // Wix SPA-like navigation
+  // Wix can do SPA-like navigation
   const _pushState = history.pushState;
   history.pushState = function () {
     _pushState.apply(this, arguments);
