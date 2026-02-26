@@ -26,10 +26,10 @@
 
     scrollTriggerPx: 8,
 
-    loginAdoptTimeoutMs: 12000,
+    loginAdoptTimeoutMs: 15000,
     loginRetryIntervalMs: 350,
 
-    // Your Wix Members/Login bar ROOT id
+    // Your Wix Members/Login bar ROOT id (from the HTML you pasted)
     wixMembersRootId: "comp-mlwaz3zu",
 
     ids: {
@@ -41,6 +41,9 @@
       loginSlot: "parlorLoginSlot",
       style: "parlorStickyHeaderStyles",
     },
+
+    bodyMountedClass: "parlor-mounted",
+    bodyLockClass: "parlor-lock",
   };
 
   // -------------------------
@@ -61,115 +64,144 @@
     return CONFIG.exactPaths.has(path) || isProductPage(path);
   };
 
-  const alreadyMounted = () => document.getElementById(CONFIG.ids.header);
-
-  if (!shouldRunHere() || alreadyMounted()) return;
+  if (!shouldRunHere()) return;
 
   // -------------------------
-  // CSS
+  // HARD RESET (so edits actually apply)
+  // -------------------------
+  const removeIfExists = (id) => {
+    const el = document.getElementById(id);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  };
+
+  const hardResetPreviousParlorUI = () => {
+    removeIfExists(CONFIG.ids.header);
+    removeIfExists(CONFIG.ids.overlay);
+    removeIfExists(CONFIG.ids.drawer);
+    removeIfExists(CONFIG.ids.style);
+    document.body.classList.remove(CONFIG.bodyMountedClass);
+    document.body.classList.remove(CONFIG.bodyLockClass);
+    document.body.style.top = "";
+  };
+
+  // IMPORTANT: do this before injecting anything
+  hardResetPreviousParlorUI();
+
+  // -------------------------
+  // CSS (always inject fresh)
   // -------------------------
   const injectCSS = () => {
-    if (document.getElementById(CONFIG.ids.style)) return;
-
     const css = `
 :root{
   --parlor-font:"thermal-variable",ui-serif,serif;
   --parlor-text:#fff;
-  --parlor-bg:#0a0a10; /* TRUE black */
+
+  /* TRUE BLACK */
+  --parlor-bg:#0a0a10;
+  --parlor-bg-opaque:rgba(10,10,16,0.96);
+
   --parlor-line:rgba(255,255,255,0.22);
   --parlor-focus:rgba(255,255,255,0.35);
 
   --header-h:64px;
   --fade-h:26px;
   --btn-size:44px;
+
+  /* iPhone safe area */
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
-/* Prevent horizontal gaps */
-html,body{ width:100%; max-width:100%; overflow-x:hidden; }
-
-/* Reserve space under fixed header */
-body{ padding-top:var(--header-h)!important; }
-
-/* Lock scroll when drawer open */
-body.parlor-lock{
-  overflow:hidden!important;
-  position:fixed!important;
-  width:100%!important;
+/* prevent side gaps / horizontal scroll */
+html, body{
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
+  margin:0;
 }
 
-/* Ensure our injected UI uses border-box */
-#${CONFIG.ids.header},
-#${CONFIG.ids.header} *,
-#${CONFIG.ids.drawer},
-#${CONFIG.ids.drawer} * { box-sizing:border-box; }
+/* Reserve space: header + safe area */
+body{
+  padding-top: calc(var(--header-h) + var(--safe-top)) !important;
+}
 
-/* -------------------------
-   STICKY HEADER (full-bleed)
--------------------------- */
+/* Lock when menu open */
+body.${CONFIG.bodyLockClass}{
+  overflow:hidden !important;
+  position:fixed !important;
+  width:100% !important;
+  left:0 !important;
+  right:0 !important;
+}
+
+/* If mounted, hide ALL Wix members bars by default... */
+body.${CONFIG.bodyMountedClass} .wixui-login-social-bar.login-social-bar{
+  display:none !important;
+}
+/* ...but allow the one we moved inside our header */
+body.${CONFIG.bodyMountedClass} #${CONFIG.ids.header} .wixui-login-social-bar.login-social-bar{
+  display:flex !important;
+}
+
+/* STICKY HEADER: full-bleed black including safe area */
 #${CONFIG.ids.header}{
   position:fixed;
-  top:0; left:0; right:0;
-  width:100%;
-  height:var(--header-h);
-  z-index:999999; /* above Wix */
+  top:0;
+  left:0;
+  width:100vw;
+  height: calc(var(--header-h) + var(--safe-top));
+  z-index:999999;
   pointer-events:none;
 }
 
-/* Full-bleed background layer (NO padding here) */
+/* header background always black */
 #${CONFIG.ids.header} .bg{
   position:absolute;
   inset:0;
-  background:var(--parlor-bg)!important;
-  opacity:0;                      /* transparent at top */
-  transition:opacity .18s ease;
+  background: var(--parlor-bg) !important;
   pointer-events:none;
 }
 
-/* Fade in black strip on scroll */
-#${CONFIG.ids.header}.scrolled .bg{ opacity:1; }
-
-/* Feather appears only when scrolled */
+/* Feather appears ONLY after scroll (not changing header bg) */
 #${CONFIG.ids.header} .bg::after{
   content:"";
   position:absolute;
   left:0; right:0;
-  top:var(--header-h);
-  height:var(--fade-h);
+  top: calc(var(--header-h) + var(--safe-top));
+  height: var(--fade-h);
   opacity:0;
   transition:opacity .18s ease;
-  background:linear-gradient(
+  background: linear-gradient(
     to bottom,
     rgba(10,10,16,0.96) 0%,
-    rgba(10,10,16,0.90) 75%,
+    rgba(10,10,16,0.90) 70%,
     rgba(10,10,16,0.00) 100%
   );
 }
 #${CONFIG.ids.header}.scrolled .bg::after{ opacity:1; }
 
-/* Clickable content row */
+/* clickable content sits below safe area */
 #${CONFIG.ids.header} .inner{
-  position:relative;
-  height:100%;
+  height: var(--header-h);
+  padding: 0 14px;
+  padding-top: var(--safe-top);
+  box-sizing: content-box;
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:0 14px;                 /* padding belongs here */
   pointer-events:auto;
+  position:relative;
 }
 
-/* -------------------------
-   HAMBURGER (white)
--------------------------- */
+/* HAMBURGER: white */
 #${CONFIG.ids.hamburger}{
   width:var(--btn-size);
   height:var(--btn-size);
   display:grid;
   place-items:center;
   border:0;
-  background:transparent!important;
+  background:transparent !important;
   cursor:pointer;
   -webkit-tap-highlight-color:transparent;
-  z-index:2;
 }
 #${CONFIG.ids.hamburger}:focus-visible{
   outline:2px solid var(--parlor-focus);
@@ -180,7 +212,7 @@ body.parlor-lock{
 #${CONFIG.ids.hamburger} .bars span{
   position:absolute; left:0; right:0;
   height:2px;
-  background:var(--parlor-text)!important;
+  background: var(--parlor-text) !important;
   border-radius:2px;
   transition:transform .22s ease, top .22s ease, opacity .18s ease;
 }
@@ -191,110 +223,87 @@ body.parlor-lock{
 #${CONFIG.ids.hamburger}.is-open .bars span:nth-child(2){ opacity:0; }
 #${CONFIG.ids.hamburger}.is-open .bars span:nth-child(3){ top:8px; transform:rotate(-45deg); }
 
-/* -------------------------
-   LOGIN SLOT (force white)
--------------------------- */
+/* Login slot */
 #${CONFIG.ids.loginSlot}{
   display:flex;
   align-items:center;
+  justify-content:flex-end;
   gap:10px;
-  z-index:2;
   font-family:var(--parlor-font);
   color:var(--parlor-text);
-  position:relative;
 }
 
-/* Aggressive “make it white” for Wix members bar inside slot */
-#${CONFIG.ids.loginSlot} *{
-  color:var(--parlor-text)!important;
-}
-#${CONFIG.ids.loginSlot} svg,
-#${CONFIG.ids.loginSlot} path{
-  fill:var(--parlor-text)!important;
-  stroke:var(--parlor-text)!important;
+/* Make adopted Wix members UI appear white */
+#${CONFIG.ids.loginSlot} *{ color: var(--parlor-text) !important; }
+#${CONFIG.ids.loginSlot} svg, #${CONFIG.ids.loginSlot} path{
+  fill: var(--parlor-text) !important;
+  stroke: var(--parlor-text) !important;
 }
 
-/* -------------------------
-   OVERLAY
--------------------------- */
+/* Overlay */
 #${CONFIG.ids.overlay}{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.45);
+  background: rgba(0,0,0,0.55);
   opacity:0;
   pointer-events:none;
   transition:opacity .22s ease;
-  z-index:999900;
+  z-index:999990;
 }
 #${CONFIG.ids.overlay}.show{
   opacity:1;
   pointer-events:auto;
 }
 
-/* -------------------------
-   DRAWER (FULL SCREEN BLACK)
--------------------------- */
+/* DRAWER: FULL SCREEN BLACK (no side gaps) */
 #${CONFIG.ids.drawer}{
   position:fixed;
   top:0; left:0;
-  width:100%;
-  height:100%;
-  background:var(--parlor-bg)!important;
-  color:var(--parlor-text)!important;
-
-  transform:translateX(-100%);
-  transition:transform .25s ease;
-  z-index:999950;
-
-  padding:0 16px 24px;
+  width:100vw;
+  height:100vh;
+  background: var(--parlor-bg) !important;
+  color: var(--parlor-text) !important;
+  transform: translateX(-100%);
+  transition: transform .25s ease;
+  z-index:999995;
   overflow-y:auto;
   overflow-x:hidden;
-  font-family:var(--parlor-font);
+  font-family: var(--parlor-font);
+  padding: 0 16px 24px;
 }
-#${CONFIG.ids.drawer}.open{ transform:translateX(0); }
+#${CONFIG.ids.drawer}.open{ transform: translateX(0); }
 
-/* Sticky cap inside drawer so items fade under the X area */
+/* Sticky top spacer inside drawer = same height as header */
 #${CONFIG.ids.drawerTop}{
   position:sticky;
   top:0;
-  height:var(--header-h);
+  height: calc(var(--header-h) + var(--safe-top));
+  background: var(--parlor-bg) !important;
   z-index:5;
-  background:var(--parlor-bg)!important;
-  margin:0 -16px;
+  margin: 0 -16px;
 }
 #${CONFIG.ids.drawerTop}::after{
   content:"";
   position:absolute;
   left:0; right:0;
-  top:var(--header-h);
-  height:var(--fade-h);
-  background:linear-gradient(
+  top: calc(var(--header-h) + var(--safe-top));
+  height: var(--fade-h);
+  background: linear-gradient(
     to bottom,
     rgba(10,10,16,0.96) 0%,
-    rgba(10,10,16,0.90) 75%,
+    rgba(10,10,16,0.90) 70%,
     rgba(10,10,16,0.00) 100%
   );
-  pointer-events:none;
 }
 
-/* Drawer menu styles */
+/* Menu */
 #${CONFIG.ids.drawer} nav{ margin-top:6px; }
 #${CONFIG.ids.drawer} .menu,
 #${CONFIG.ids.drawer} .submenu{ list-style:none; margin:0; padding:0; }
 #${CONFIG.ids.drawer} .menu>li{ border-bottom:1px solid var(--parlor-line); }
 
-#${CONFIG.ids.drawer} .row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  padding:14px 6px;
-  font-size:18px;
-  letter-spacing:.01em;
-}
-
 #${CONFIG.ids.drawer} a.link{
-  color:var(--parlor-text)!important;
+  color: var(--parlor-text) !important;
   text-decoration:none;
   display:block;
   width:100%;
@@ -303,12 +312,19 @@ body.parlor-lock{
   letter-spacing:.01em;
 }
 
+#${CONFIG.ids.drawer} .row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
 #${CONFIG.ids.drawer} .toggle{
   border:0;
-  background:transparent!important;
-  color:var(--parlor-text)!important;
+  background:transparent !important;
+  color: var(--parlor-text) !important;
   cursor:pointer;
-  padding:10px 10px;
+  padding:12px 10px;
   border-radius:10px;
   display:grid;
   place-items:center;
@@ -316,18 +332,13 @@ body.parlor-lock{
 }
 
 #${CONFIG.ids.drawer} .chev{
-  width:14px;
-  height:14px;
+  width:14px; height:14px;
   border-right:2px solid var(--parlor-text);
   border-bottom:2px solid var(--parlor-text);
   transform:rotate(45deg);
   transition:transform .2s ease;
-  margin-top:-2px;
 }
-#${CONFIG.ids.drawer} .expanded .chev{
-  transform:rotate(-135deg);
-  margin-top:2px;
-}
+#${CONFIG.ids.drawer} .expanded .chev{ transform:rotate(-135deg); }
 
 #${CONFIG.ids.drawer} .submenu-wrap{
   max-height:0;
@@ -335,13 +346,13 @@ body.parlor-lock{
   transition:max-height .25s ease;
 }
 #${CONFIG.ids.drawer} .submenu{
-  padding:6px 0 12px 14px;
+  padding: 6px 0 12px 14px;
 }
 #${CONFIG.ids.drawer} .submenu li a{
   display:block;
   padding:10px 6px;
   font-size:16px;
-  color:rgba(255,255,255,0.78)!important;
+  color: rgba(255,255,255,0.78) !important;
   text-decoration:none;
 }
     `.trim();
@@ -387,7 +398,7 @@ body.parlor-lock{
 
           <li class="accordion" data-acc>
             <div class="row">
-              <a class="link" href="/self-care" style="padding:0; flex:1;">Self Care</a>
+              <a class="link" href="/self-care" style="padding:14px 6px; flex:1;">Self Care</a>
               <button class="toggle" type="button" aria-label="Toggle Self Care submenu" aria-expanded="false">
                 <span class="chev" aria-hidden="true"></span>
               </button>
@@ -406,7 +417,7 @@ body.parlor-lock{
 
           <li class="accordion" data-acc>
             <div class="row">
-              <a class="link" href="/tea-rituals" style="padding:0; flex:1;">Tea &amp; Rituals</a>
+              <a class="link" href="/tea-rituals" style="padding:14px 6px; flex:1;">Tea &amp; Rituals</a>
               <button class="toggle" type="button" aria-label="Toggle Tea & Rituals submenu" aria-expanded="false">
                 <span class="chev" aria-hidden="true"></span>
               </button>
@@ -425,7 +436,7 @@ body.parlor-lock{
 
           <li class="accordion" data-acc>
             <div class="row">
-              <a class="link" href="/apparel-accessories" style="padding:0; flex:1;">Apparel &amp; Accessories</a>
+              <a class="link" href="/apparel-accessories" style="padding:14px 6px; flex:1;">Apparel &amp; Accessories</a>
               <button class="toggle" type="button" aria-label="Toggle Apparel & Accessories submenu" aria-expanded="false">
                 <span class="chev" aria-hidden="true"></span>
               </button>
@@ -443,29 +454,11 @@ body.parlor-lock{
       </nav>
     `.trim();
 
-    // IMPORTANT: put these at the very end of <body>
     document.body.appendChild(header);
     document.body.appendChild(overlay);
     document.body.appendChild(drawer);
 
     return { header, overlay, drawer };
-  };
-
-  // -------------------------
-  // Hide duplicate Wix members bars outside our header
-  // -------------------------
-  const suppressDuplicateMembersBars = () => {
-    const header = document.getElementById(CONFIG.ids.header);
-    if (!header) return;
-
-    const bars = Array.from(document.querySelectorAll(".wixui-login-social-bar.login-social-bar"));
-    bars.forEach((bar) => {
-      const insideHeader = header.contains(bar);
-      if (!insideHeader) {
-        bar.style.display = "none";
-        bar.setAttribute("data-parlor-suppressed", "1");
-      }
-    });
   };
 
   // -------------------------
@@ -478,12 +471,12 @@ body.parlor-lock{
 
     const lockBody = () => {
       lockedScrollY = window.scrollY || 0;
-      document.body.classList.add("parlor-lock");
+      document.body.classList.add(CONFIG.bodyLockClass);
       document.body.style.top = `-${lockedScrollY}px`;
     };
 
     const unlockBody = () => {
-      document.body.classList.remove("parlor-lock");
+      document.body.classList.remove(CONFIG.bodyLockClass);
       const top = document.body.style.top;
       document.body.style.top = "";
       const y = top ? Math.abs(parseInt(top, 10)) : lockedScrollY;
@@ -523,16 +516,20 @@ body.parlor-lock{
       if (a) closeMenu();
     });
 
+    // Accordions
     const accordions = Array.from(drawer.querySelectorAll("[data-acc]"));
     accordions.forEach((acc) => {
       const toggle = acc.querySelector(".toggle");
       const wrap = acc.querySelector(".submenu-wrap");
+
       toggle.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+
         const expanded = toggle.getAttribute("aria-expanded") === "true";
         toggle.setAttribute("aria-expanded", String(!expanded));
         acc.classList.toggle("expanded", !expanded);
+
         if (!expanded) {
           wrap.style.maxHeight = wrap.scrollHeight + "px";
           wrap.setAttribute("aria-hidden", "false");
@@ -542,12 +539,14 @@ body.parlor-lock{
         }
       });
     });
+
+    return { closeMenu };
   };
 
   // -------------------------
-  // Scroll: toggle "scrolled" class
+  // Scroll feather enable
   // -------------------------
-  const wireScrollFade = (headerEl) => {
+  const wireScrollFeather = (headerEl) => {
     const onScroll = () => {
       if (window.scrollY > CONFIG.scrollTriggerPx) headerEl.classList.add("scrolled");
       else headerEl.classList.remove("scrolled");
@@ -557,26 +556,25 @@ body.parlor-lock{
   };
 
   // -------------------------
-  // Adopt Wix Members bar by ID (MOVE real element)
+  // Adopt Wix Members bar (move real element into slot)
   // -------------------------
   const findWixMembersBar = () => {
     const byId = document.getElementById(CONFIG.wixMembersRootId);
     if (byId) return byId;
 
-    const anyBar = document.querySelector(".wixui-login-social-bar.login-social-bar:not([data-parlor-suppressed='1'])");
-    if (anyBar) return anyBar;
-
-    return null;
+    // fallback if Wix changes the id
+    return document.querySelector(".wixui-login-social-bar.login-social-bar") || null;
   };
 
   const adoptMembersBarIntoSlot = (loginSlotEl) => {
     const bar = findWixMembersBar();
     if (!bar) return false;
 
+    // already inside? ok
     const header = document.getElementById(CONFIG.ids.header);
     if (header && header.contains(bar)) return true;
 
-    // Move node (not clone) so original disappears
+    // move it
     bar.style.margin = "0";
     bar.style.padding = "0";
     bar.style.background = "transparent";
@@ -586,7 +584,6 @@ body.parlor-lock{
     loginSlotEl.innerHTML = "";
     loginSlotEl.appendChild(bar);
 
-    suppressDuplicateMembersBars();
     return true;
   };
 
@@ -594,29 +591,24 @@ body.parlor-lock{
     const start = Date.now();
     let adopted = false;
 
-    const tryAdopt = () => {
-      if (adopted) return true;
+    const tick = () => {
+      adopted = adopted || adoptMembersBarIntoSlot(loginSlotEl);
 
-      adopted = adoptMembersBarIntoSlot(loginSlotEl);
+      // stop once adopted or timed out
       if (adopted) return true;
-
       if (Date.now() - start > CONFIG.loginAdoptTimeoutMs) {
-        // No fallback link (your request) — hide slot if not found
+        // no fallback link (your request)
         loginSlotEl.style.display = "none";
-        return false;
+        return true;
       }
       return false;
     };
 
-    // Immediate + poll (Wix renders late and can re-render duplicates)
-    tryAdopt();
+    // immediate + poll (Wix renders late / re-renders)
+    tick();
     const t = setInterval(() => {
-      tryAdopt();
-      suppressDuplicateMembersBars();
-      if (adopted || Date.now() - start > CONFIG.loginAdoptTimeoutMs) clearInterval(t);
+      if (tick()) clearInterval(t);
     }, CONFIG.loginRetryIntervalMs);
-
-    setTimeout(suppressDuplicateMembersBars, 1200);
   };
 
   // -------------------------
@@ -624,17 +616,18 @@ body.parlor-lock{
   // -------------------------
   const init = () => {
     if (!shouldRunHere()) return;
-    if (alreadyMounted()) return;
+
+    // mark mounted (activates CSS rule hiding duplicates outside header)
+    document.body.classList.add(CONFIG.bodyMountedClass);
 
     injectCSS();
     const els = injectHTML();
+
     wireMenu(els);
-    wireScrollFade(els.header);
+    wireScrollFeather(els.header);
 
     const loginSlot = document.getElementById(CONFIG.ids.loginSlot);
     if (loginSlot) ensureMembersBar(loginSlot);
-
-    setTimeout(suppressDuplicateMembersBars, 1600);
   };
 
   if (document.readyState === "loading") {
@@ -643,11 +636,19 @@ body.parlor-lock{
     init();
   }
 
-  // SPA-ish nav safeguard
+  // Wix SPA-ish nav safeguard
   const _pushState = history.pushState;
   history.pushState = function () {
     _pushState.apply(this, arguments);
-    setTimeout(init, 120);
+    setTimeout(() => {
+      hardResetPreviousParlorUI();
+      init();
+    }, 80);
   };
-  window.addEventListener("popstate", () => setTimeout(init, 120));
+  window.addEventListener("popstate", () => {
+    setTimeout(() => {
+      hardResetPreviousParlorUI();
+      init();
+    }, 80);
+  });
 })();
