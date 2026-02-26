@@ -29,7 +29,7 @@
     loginAdoptTimeoutMs: 12000,
     loginRetryIntervalMs: 350,
 
-    // ✅ Your Wix Members/Login bar ROOT id (from the HTML you pasted)
+    // Your Wix Members/Login bar ROOT id
     wixMembersRootId: "comp-mlwaz3zu",
 
     ids: {
@@ -74,11 +74,8 @@
     const css = `
 :root{
   --parlor-font:"thermal-variable",ui-serif,serif;
-
-  /* FORCE true black UI */
   --parlor-text:#fff;
-  --parlor-bg:#0a0a10;
-
+  --parlor-bg:#0a0a10; /* TRUE black */
   --parlor-line:rgba(255,255,255,0.22);
   --parlor-focus:rgba(255,255,255,0.35);
 
@@ -87,55 +84,59 @@
   --btn-size:44px;
 }
 
-/* Make sure the page can’t introduce side gaps */
+/* Prevent horizontal gaps */
 html,body{ width:100%; max-width:100%; overflow-x:hidden; }
 
-/* Reserve space so content doesn't sit under fixed header */
+/* Reserve space under fixed header */
 body{ padding-top:var(--header-h)!important; }
 
-/* Optional lock when menu open */
+/* Lock scroll when drawer open */
 body.parlor-lock{
   overflow:hidden!important;
   position:fixed!important;
   width:100%!important;
 }
 
-/* Sticky header wrapper (TRUE full-width) */
+/* Ensure our injected UI uses border-box */
+#${CONFIG.ids.header},
+#${CONFIG.ids.header} *,
+#${CONFIG.ids.drawer},
+#${CONFIG.ids.drawer} * { box-sizing:border-box; }
+
+/* -------------------------
+   STICKY HEADER (full-bleed)
+-------------------------- */
 #${CONFIG.ids.header}{
   position:fixed;
-  top:0; left:0;
-  width:100vw;
+  top:0; left:0; right:0;
+  width:100%;
   height:var(--header-h);
-  z-index:99999;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-
-  /* important: no transparency here */
+  z-index:999999; /* above Wix */
   pointer-events:none;
 }
 
-/* Background strip: ALWAYS BLACK */
+/* Full-bleed background layer (NO padding here) */
 #${CONFIG.ids.header} .bg{
   position:absolute;
   inset:0;
   background:var(--parlor-bg)!important;
-  opacity:1!important;
+  opacity:0;                      /* transparent at top */
+  transition:opacity .18s ease;
   pointer-events:none;
 }
 
-/* Feather ONLY after scroll */
+/* Fade in black strip on scroll */
+#${CONFIG.ids.header}.scrolled .bg{ opacity:1; }
+
+/* Feather appears only when scrolled */
 #${CONFIG.ids.header} .bg::after{
   content:"";
   position:absolute;
   left:0; right:0;
   top:var(--header-h);
   height:var(--fade-h);
-
-  /* start hidden */
   opacity:0;
   transition:opacity .18s ease;
-
   background:linear-gradient(
     to bottom,
     rgba(10,10,16,0.96) 0%,
@@ -145,19 +146,20 @@ body.parlor-lock{
 }
 #${CONFIG.ids.header}.scrolled .bg::after{ opacity:1; }
 
-/* Clickable inner (pad the content, not the bg) */
+/* Clickable content row */
 #${CONFIG.ids.header} .inner{
-  width:100%;
+  position:relative;
   height:100%;
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:0 14px;
+  padding:0 14px;                 /* padding belongs here */
   pointer-events:auto;
-  position:relative;
 }
 
-/* Hamburger (WHITE) */
+/* -------------------------
+   HAMBURGER (white)
+-------------------------- */
 #${CONFIG.ids.hamburger}{
   width:var(--btn-size);
   height:var(--btn-size);
@@ -189,7 +191,9 @@ body.parlor-lock{
 #${CONFIG.ids.hamburger}.is-open .bars span:nth-child(2){ opacity:0; }
 #${CONFIG.ids.hamburger}.is-open .bars span:nth-child(3){ top:8px; transform:rotate(-45deg); }
 
-/* Login slot */
+/* -------------------------
+   LOGIN SLOT (force white)
+-------------------------- */
 #${CONFIG.ids.loginSlot}{
   display:flex;
   align-items:center;
@@ -200,7 +204,7 @@ body.parlor-lock{
   position:relative;
 }
 
-/* Force adopted Wix members UI to be white (icons/text) */
+/* Aggressive “make it white” for Wix members bar inside slot */
 #${CONFIG.ids.loginSlot} *{
   color:var(--parlor-text)!important;
 }
@@ -210,7 +214,9 @@ body.parlor-lock{
   stroke:var(--parlor-text)!important;
 }
 
-/* Overlay */
+/* -------------------------
+   OVERLAY
+-------------------------- */
 #${CONFIG.ids.overlay}{
   position:fixed;
   inset:0;
@@ -218,25 +224,28 @@ body.parlor-lock{
   opacity:0;
   pointer-events:none;
   transition:opacity .22s ease;
-  z-index:99970;
+  z-index:999900;
 }
 #${CONFIG.ids.overlay}.show{
   opacity:1;
   pointer-events:auto;
 }
 
-/* Drawer: FULL SCREEN, BLACK, NO GAPS */
+/* -------------------------
+   DRAWER (FULL SCREEN BLACK)
+-------------------------- */
 #${CONFIG.ids.drawer}{
   position:fixed;
   top:0; left:0;
-  width:100vw;
-  height:100vh;
-  max-width:100vw;
+  width:100%;
+  height:100%;
   background:var(--parlor-bg)!important;
   color:var(--parlor-text)!important;
+
   transform:translateX(-100%);
   transition:transform .25s ease;
-  z-index:99980;
+  z-index:999950;
+
   padding:0 16px 24px;
   overflow-y:auto;
   overflow-x:hidden;
@@ -244,7 +253,7 @@ body.parlor-lock{
 }
 #${CONFIG.ids.drawer}.open{ transform:translateX(0); }
 
-/* Top cap inside drawer */
+/* Sticky cap inside drawer so items fade under the X area */
 #${CONFIG.ids.drawerTop}{
   position:sticky;
   top:0;
@@ -434,6 +443,7 @@ body.parlor-lock{
       </nav>
     `.trim();
 
+    // IMPORTANT: put these at the very end of <body>
     document.body.appendChild(header);
     document.body.appendChild(overlay);
     document.body.appendChild(drawer);
@@ -443,7 +453,6 @@ body.parlor-lock{
 
   // -------------------------
   // Hide duplicate Wix members bars outside our header
-  // (Wix sometimes re-renders a fresh one after we move it)
   // -------------------------
   const suppressDuplicateMembersBars = () => {
     const header = document.getElementById(CONFIG.ids.header);
@@ -533,12 +542,10 @@ body.parlor-lock{
         }
       });
     });
-
-    return { closeMenu };
   };
 
   // -------------------------
-  // Scroll feather enable
+  // Scroll: toggle "scrolled" class
   // -------------------------
   const wireScrollFade = (headerEl) => {
     const onScroll = () => {
@@ -550,7 +557,7 @@ body.parlor-lock{
   };
 
   // -------------------------
-  // Adopt Wix Members bar by ID (MOVE the real element)
+  // Adopt Wix Members bar by ID (MOVE real element)
   // -------------------------
   const findWixMembersBar = () => {
     const byId = document.getElementById(CONFIG.wixMembersRootId);
@@ -566,11 +573,10 @@ body.parlor-lock{
     const bar = findWixMembersBar();
     if (!bar) return false;
 
-    // If it’s already inside our header, great.
     const header = document.getElementById(CONFIG.ids.header);
     if (header && header.contains(bar)) return true;
 
-    // Move the entire bar node
+    // Move node (not clone) so original disappears
     bar.style.margin = "0";
     bar.style.padding = "0";
     bar.style.background = "transparent";
@@ -580,9 +586,7 @@ body.parlor-lock{
     loginSlotEl.innerHTML = "";
     loginSlotEl.appendChild(bar);
 
-    // After moving, hide any re-rendered duplicates elsewhere
     suppressDuplicateMembersBars();
-
     return true;
   };
 
@@ -597,22 +601,22 @@ body.parlor-lock{
       if (adopted) return true;
 
       if (Date.now() - start > CONFIG.loginAdoptTimeoutMs) {
-        // If we can’t find it, just hide the slot (per your request: no fallback link)
+        // No fallback link (your request) — hide slot if not found
         loginSlotEl.style.display = "none";
         return false;
       }
       return false;
     };
 
-    // Poll because Wix renders late and may re-render after move
+    // Immediate + poll (Wix renders late and can re-render duplicates)
+    tryAdopt();
     const t = setInterval(() => {
-      const ok = tryAdopt();
+      tryAdopt();
       suppressDuplicateMembersBars();
-      if (ok || Date.now() - start > CONFIG.loginAdoptTimeoutMs) clearInterval(t);
+      if (adopted || Date.now() - start > CONFIG.loginAdoptTimeoutMs) clearInterval(t);
     }, CONFIG.loginRetryIntervalMs);
 
-    // Immediate attempt
-    tryAdopt();
+    setTimeout(suppressDuplicateMembersBars, 1200);
   };
 
   // -------------------------
@@ -630,8 +634,7 @@ body.parlor-lock{
     const loginSlot = document.getElementById(CONFIG.ids.loginSlot);
     if (loginSlot) ensureMembersBar(loginSlot);
 
-    // One more suppression pass
-    setTimeout(suppressDuplicateMembersBars, 1200);
+    setTimeout(suppressDuplicateMembersBars, 1600);
   };
 
   if (document.readyState === "loading") {
@@ -644,7 +647,7 @@ body.parlor-lock{
   const _pushState = history.pushState;
   history.pushState = function () {
     _pushState.apply(this, arguments);
-    setTimeout(init, 80);
+    setTimeout(init, 120);
   };
-  window.addEventListener("popstate", () => setTimeout(init, 80));
+  window.addEventListener("popstate", () => setTimeout(init, 120));
 })();
